@@ -5,26 +5,34 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Eye, EyeOff, Mail, Lock, BookOpen } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, BookOpen, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const Login = () => {
+const SignUp = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password !== confirmPassword) {
+      console.log('Passwords do not match');
+      return;
+    }
     setIsLoading(true);
-    // TODO: Implement actual login logic when backend is connected
-    console.log('Login attempt:', { email, password });
+    // TODO: Implement actual sign up logic when backend is connected
+    console.log('Sign up attempt:', { email, password, firstName, lastName });
     setTimeout(() => setIsLoading(false), 1000);
   };
 
-  const handleOAuthLogin = (provider: string) => {
-    console.log(`OAuth login with ${provider}`);
-    // TODO: Implement OAuth login when backend is connected
+  const handleOAuthSignUp = (provider: string) => {
+    console.log(`OAuth sign up with ${provider}`);
+    // TODO: Implement OAuth sign up when backend is connected
   };
 
   return (
@@ -36,13 +44,47 @@ const Login = () => {
               <BookOpen className="h-8 w-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
           <CardDescription>
-            Sign in to your Smart Learning Dashboard
+            Join the Smart Learning Dashboard
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleSignUp} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="firstName"
+                    type="text"
+                    placeholder="John"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="lastName"
+                    type="text"
+                    placeholder="Doe"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -66,7 +108,7 @@ const Login = () => {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
+                  placeholder="Create a password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 pr-10"
@@ -82,17 +124,41 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center space-x-2">
-                <input type="checkbox" className="rounded border-gray-300" />
-                <span className="text-sm text-gray-600">Remember me</span>
-              </label>
-              <button
-                type="button"
-                className="text-sm text-blue-600 hover:underline"
-              >
-                Forgot password?
-              </button>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pl-10 pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input type="checkbox" className="rounded border-gray-300" required />
+              <span className="text-sm text-gray-600">
+                I agree to the{' '}
+                <button type="button" className="text-blue-600 hover:underline">
+                  Terms of Service
+                </button>{' '}
+                and{' '}
+                <button type="button" className="text-blue-600 hover:underline">
+                  Privacy Policy
+                </button>
+              </span>
             </div>
 
             <Button
@@ -100,7 +166,7 @@ const Login = () => {
               className="w-full"
               disabled={isLoading}
             >
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? 'Creating account...' : 'Create account'}
             </Button>
           </form>
 
@@ -116,7 +182,7 @@ const Login = () => {
           <div className="grid grid-cols-2 gap-3">
             <Button
               variant="outline"
-              onClick={() => handleOAuthLogin('google')}
+              onClick={() => handleOAuthSignUp('google')}
               className="w-full"
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
@@ -141,7 +207,7 @@ const Login = () => {
             </Button>
             <Button
               variant="outline"
-              onClick={() => handleOAuthLogin('github')}
+              onClick={() => handleOAuthSignUp('github')}
               className="w-full"
             >
               <svg className="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -156,9 +222,9 @@ const Login = () => {
           </div>
 
           <div className="text-center text-sm">
-            <span className="text-gray-600">Don't have an account? </span>
-            <Link to="/signup" className="text-blue-600 hover:underline font-medium">
-              Sign up
+            <span className="text-gray-600">Already have an account? </span>
+            <Link to="/login" className="text-blue-600 hover:underline font-medium">
+              Sign in
             </Link>
           </div>
         </CardContent>
@@ -167,4 +233,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default SignUp;
