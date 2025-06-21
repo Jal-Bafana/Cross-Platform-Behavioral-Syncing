@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Brain, Heart, Users, Zap, Target, Rocket, Shield, Globe } from "lucide-react"
+import { Brain, Heart, Users, Zap, Target, Rocket, Shield, Globe, Github, Linkedin } from "lucide-react"
 
 const About = () => {
   const teamValues = [
@@ -32,26 +32,41 @@ const About = () => {
     },
   ]
 
-  const stats = [
-    { number: "50K+", label: "Active Learners", icon: Users },
-    { number: "2M+", label: "Synced Activities", icon: Target },
-    { number: "99.9%", label: "Uptime", icon: Shield },
-    { number: "150+", label: "Countries", icon: Globe },
-  ]
+  // Stats section commented out as requested
+  // const stats = [
+  //   { number: "50K+", label: "Active Learners", icon: Users },
+  //   { number: "2M+", label: "Synced Activities", icon: Target },
+  //   { number: "99.9%", label: "Uptime", icon: Shield },
+  //   { number: "150+", label: "Countries", icon: Globe },
+  // ]
 
   const techStack = [
     "React",
     "Node.js",
+    "Next.js",
     "Python",
-    "TensorFlow",
-    "GraphQL",
-    "PostgreSQL",
-    "Redis",
-    "Docker",
-    "Kubernetes",
-    "AWS",
-    "TypeScript",
+    "MySQL",
+    "NLP",
+    "JavaScript",
     "FastAPI",
+  ]
+
+  const members = [
+    {
+      name: "Jal",
+      github: "https://github.com/Jal-Bafana",
+      linkedin: "https://www.linkedin.com/in/jalbafana/",
+    },
+    {
+      name: "Kanish",
+      github: "https://github.com/kanishjn",
+      linkedin: "https://www.linkedin.com/in/kanish-jain-1b83902ab/",
+    },
+    {
+      name: "Saurabh",
+      github: "https://github.com/sdsorigins",
+      linkedin: "https://www.linkedin.com/in/saurabh-shandilya-a24988278/",
+    },
   ]
 
   return (
@@ -86,7 +101,7 @@ const About = () => {
         </motion.div>
 
         {/* Stats Section */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
@@ -119,7 +134,7 @@ const About = () => {
               </div>
             </motion.div>
           ))}
-        </motion.div>
+        </motion.div> */}
 
         {/* Mission Section */}
         <motion.div
@@ -291,6 +306,56 @@ const About = () => {
               Join us in shaping the future of personalized education 🚀
             </motion.p>
           </div>
+        </motion.div>
+
+        {/* Member Cards Section - added at the end */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 1.2 }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-20"
+        >
+          {members.map((member, index) => (
+            <motion.div
+              key={member.name}
+              className="relative group"
+              whileHover={{ scale: 1.05, y: -5 }}
+              animate={{
+                y: [0, -10, 0],
+              }}
+              transition={{
+                y: {
+                  duration: 4,
+                  repeat: Number.POSITIVE_INFINITY,
+                  delay: index * 0.5,
+                  ease: "easeInOut",
+                },
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-cyan-600/20 rounded-xl blur-lg group-hover:blur-xl transition-all"></div>
+              <div className="relative backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-6 text-center">
+                <div className="text-3xl md:text-4xl font-bold text-white mb-2">{member.name}</div>
+                <div className="flex justify-center space-x-4 mt-2">
+                  <a
+                    href={member.github}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-white transition"
+                  >
+                    <Github className="w-6 h-6" />
+                  </a>
+                  <a
+                    href={member.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-white transition"
+                  >
+                    <Linkedin className="w-6 h-6" />
+                  </a>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </motion.div>
       </div>
     </div>
