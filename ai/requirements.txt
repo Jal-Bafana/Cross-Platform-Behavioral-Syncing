@@ -7,5 +7,5 @@ scikit-learn
 python-dotenv
 mysql-connector-python
 google-api-python-client
-python-isodate
+isodate
 starlette

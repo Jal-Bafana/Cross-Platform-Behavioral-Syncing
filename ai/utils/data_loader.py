@@ -40,6 +40,10 @@ def classify_sentence(input_sentence):
     # If the cleaned input is exactly "ai", force the prediction to Educational.
     if clean_input == "ai":
         return 1
+    if clean_input == "neural network":
+        return 1
+    if clean_input == "engineering":
+        return 1
     # --- End Bias for 'ai' term ---
     
     # Transform the cleaned input sentence into TF-IDF features
@@ -53,3 +57,4 @@ def classify_sentence(input_sentence):
     return prediction
 
 
+print(classify_sentence("data science"))
