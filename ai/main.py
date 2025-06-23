@@ -25,20 +25,13 @@ from auth import router as auth_router
 app = FastAPI()
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
-SessionMiddleware( 
-    secret_key=os.getenv("SESSION_SECRET_KEY"), 
-    https_only=True,                            
-    same_site="none",
-    max_age=3600,
-    path="/"
-)
 
 app.add_middleware(
-    SessionMiddleware, 
-    secret_key="922005", 
-    https_only=False,
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET_KEY") or "922005",  
+    https_only=True,  
     same_site="none",
-    max_age=3600,  
+    max_age=3600,
     path="/"
 )
 
