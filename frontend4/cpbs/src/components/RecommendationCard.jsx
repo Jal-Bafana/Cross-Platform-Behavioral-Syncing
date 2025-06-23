@@ -4,11 +4,18 @@ import { motion } from "framer-motion"
 import { Star, ExternalLink, Clock, Users, Eye, GitFork, Award } from "lucide-react"
 
 const RecommendationCard = ({ type, data }) => {
+  const handleCardClick = () => {
+    if (data.url) {
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   const renderGitHubCard = () => (
     <motion.div
       className="relative group cursor-pointer h-full"
       whileHover={{ y: -5, scale: 1.02 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      onClick={handleCardClick}
     >
       <div className="absolute inset-0 bg-gradient-to-r from-gray-600/20 to-gray-800/20 rounded-xl blur-lg group-hover:blur-xl transition-all"></div>
       <div className="relative backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-6 h-full group-hover:border-gray-400/30 transition-all duration-300">
@@ -60,6 +67,7 @@ const RecommendationCard = ({ type, data }) => {
       className="relative group cursor-pointer h-full"
       whileHover={{ y: -5, scale: 1.02 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      onClick={handleCardClick}
     >
       <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 to-red-800/20 rounded-xl blur-lg group-hover:blur-xl transition-all"></div>
       <div className="relative backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-6 h-full group-hover:border-red-400/30 transition-all duration-300">
@@ -109,6 +117,7 @@ const RecommendationCard = ({ type, data }) => {
       className="relative group cursor-pointer h-full"
       whileHover={{ y: -5, scale: 1.02 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      onClick={handleCardClick}
     >
       <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-blue-800/20 rounded-xl blur-lg group-hover:blur-xl transition-all"></div>
       <div className="relative backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-6 h-full group-hover:border-blue-400/30 transition-all duration-300">

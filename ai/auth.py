@@ -57,7 +57,6 @@ def save_tokens_yt(email, access_token, refresh_token, expires_in, platform):
         )
         user_id = cursor.fetchone()[0]
 
-    expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
 
     query = """
     INSERT INTO user_tokens (user_id, platform, access_token, refresh_token, expires_in)
@@ -119,7 +118,7 @@ def google_callback(request: Request):
     }
 
     userinfo = requests.get("https://openidconnect.googleapis.com/v1/userinfo", headers=headers).json()
-    print("Google userinfo:", userinfo)
+    
 
     email = userinfo.get("email")
     name = userinfo.get("name", "Unknown User")
@@ -131,25 +130,31 @@ def google_callback(request: Request):
     import uuid
     temp_token = str(uuid.uuid4())
     
-    # Store session data temporarily
+    # Store session data temporarily - ADD PLATFORM FIELD
     temp_sessions[temp_token] = {
         "email": email,
-        "name": name
+        "name": name,
+        "platform": "google"  
     }
-    
-    print("Stored temp session:", temp_token, temp_sessions[temp_token])
     
     # Redirect with the token
     return RedirectResponse(f"http://localhost:3000?auth_token={temp_token}")
 
-# Add this new endpoint to retrieve and set the session
 @router.get("/claim")
 def claim_session(auth_token: str, request: Request):
     if auth_token in temp_sessions:
         session_data = temp_sessions[auth_token]
         
-        # Set the actual session
-        request.session["google_user"] = session_data
+        # Set the appropriate session based on platform
+        if session_data.get("platform") == "github":
+            request.session["github_user"] = {
+                "email": session_data["email"]
+            }
+        else:  # Google (or default to Google)
+            request.session["google_user"] = {
+                "email": session_data["email"],
+                "name": session_data["name"]
+            }
         
         # Clean up temporary storage
         del temp_sessions[auth_token]
@@ -157,7 +162,6 @@ def claim_session(auth_token: str, request: Request):
         return {"success": True, "user": session_data}
     else:
         return {"success": False, "error": "Invalid or expired token"}
-
 @router.get("/github")
 def github_login():
     github_auth_url = (
@@ -224,11 +228,17 @@ def github_callback(code: str, request: Request):
 
     store_github_token(email=primary_email, access_token=access_token)
 
-    request.session["github_user"] = {
-        "email": primary_email
+    # Generate a temporary token (same as Google)
+    import uuid
+    temp_token = str(uuid.uuid4())
+    
+    # Store session data temporarily
+    temp_sessions[temp_token] = {
+        "email": primary_email,
+        "platform": "github" 
     }
-
-    return RedirectResponse("http://localhost:3000")
+    
+    return RedirectResponse(f"http://localhost:3000?auth_token={temp_token}")
 
 from fastapi import Request
 from mysql.connector import connect

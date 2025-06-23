@@ -1,5 +1,8 @@
+/* global chrome */
+
 "use client"
-import {useEffect} from "react"
+
+import {useEffect, useState} from "react"
 import { motion } from "framer-motion"
 import { Link, useNavigate } from "react-router-dom"
 import { Github, Youtube, BookOpen, Sparkles, Zap, Target, Network, TrendingUp, User } from "lucide-react"
@@ -23,70 +26,208 @@ const Landing = () => {
     isCourseraConnected,
     setIsCourseraConnected,
     setPlatformData,
+    platformData,
   } = useAppContext()
+
+  // Add loading states for platform data
+  const [isGitHubDataLoading, setIsGitHubDataLoading] = useState(false)
+  const [isYouTubeDataLoading, setIsYouTubeDataLoading] = useState(false)
+  const [isCourseraDataLoading, setIsCourseraDataLoading] = useState(false)
+
+const SESSION_STORAGE_KEY = 'platform_connections';
+
+const saveConnectionState = (connections) => {
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(connections));
+  } catch (error) {
+    console.warn('Failed to save connection state:', error);
+  }
+};
+
+const loadConnectionState = () => {
+  try {
+    const saved = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch (error) {
+    console.warn('Failed to load connection state:', error);
+    return {};
+  }
+};
+
 useEffect(() => {
   const updateAuthState = async () => {
     try {
-      // Check if we have an auth token from redirect
+      const savedConnections = loadConnectionState();
+      
+      if (savedConnections.isGitHubDataLoading) {
+        setIsGitHubDataLoading(true);
+      }
+      if (savedConnections.isYouTubeDataLoading) {
+        setIsYouTubeDataLoading(true);
+      }
+      if (savedConnections.isCourseraDataLoading) {
+        setIsCourseraDataLoading(true);
+      }
+      
+      if (savedConnections.platformData) {
+        setPlatformData(savedConnections.platformData);
+      }
+      
       const urlParams = new URLSearchParams(window.location.search);
       const authToken = urlParams.get('auth_token');
       
       if (authToken) {
-        // Claim the session
         const claimRes = await fetch(`http://localhost:8000/auth/claim?auth_token=${authToken}`, {
           credentials: "include"
         });
         const claimData = await claimRes.json();
         
         if (claimData.success) {
-          // Remove token from URL
           window.history.replaceState({}, '', '/');
           
-          // Set the user data
-          setIsYouTubeConnected(true);
-          setIsAuthenticated(true);
-          setUser({
-            name: claimData.user.name,
-            email: claimData.user.email
-          });
-          return;
+         if (claimData.user.platform === "github") {
+  setIsGitHubConnected(true);
+  setIsAuthenticated(true);
+
+  setUser({
+    name: claimData.user.name,
+    email: claimData.user.email,
+  });
+
+  saveConnectionState({
+    ...savedConnections,
+    github: true,
+    authenticated: true,
+    user: {
+      name: claimData.user.name,
+      email: claimData.user.email
+    }
+  });
+} else {
+            // Google
+            setIsYouTubeConnected(true);
+            setIsAuthenticated(true);
+            setUser({
+              name: claimData.user.name,
+              email: claimData.user.email
+            });
+            // Save to session storage
+            saveConnectionState({
+              ...savedConnections,
+              youtube: true,
+              authenticated: true,
+              user: {
+                name: claimData.user.name,
+                email: claimData.user.email
+              }
+            });
+          }
+          return; // Exit early
         }
       }
       
-      // Normal auth check for existing sessions
+      // Try to get auth status from backend
       const res = await fetch("http://localhost:8000/auth/status", {
         credentials: "include"
       });
       const data = await res.json();
       console.log("Auth status:", data);
 
-      if (data.google_connected) {
-        setIsYouTubeConnected(true);
+      // Use backend data if available, otherwise fall back to saved state
+      let shouldSetYoutube = data.google_connected || savedConnections.youtube;
+      let shouldSetGithub = data.github_connected || savedConnections.github;
+      let shouldSetCoursera = savedConnections.coursera;
+      let shouldSetAuth = data.authenticated || savedConnections.authenticated;
 
-        const userRes = await fetch(`http://localhost:8000/auth/user?email=${data.google_email}`, {
-          credentials: "include"
-        });
-        const userData = await userRes.json();
-        setUser({
-          name: userData.user.name,
-          email: userData.email
-        });
+      if (shouldSetYoutube && !isYouTubeConnected) {
+        setIsYouTubeConnected(true);
+        
+        // Try to get user data from backend, fallback to saved
+        if (data.google_connected && data.google_email) {
+          try {
+            const userRes = await fetch(`http://localhost:8000/auth/user?email=${data.google_email}`, {
+              credentials: "include"
+            });
+            const userData = await userRes.json();
+            setUser({
+              name: userData.user.name,
+              email: userData.email
+            });
+          } catch (error) {
+            // Fallback to saved user data
+            if (savedConnections.user) {
+              setUser(savedConnections.user);
+            }
+          }
+        } else if (savedConnections.user) {
+          setUser(savedConnections.user);
+        }
       }
 
-      if (data.github_connected) {
+      if (shouldSetGithub && !isGitHubConnected) {
         setIsGitHubConnected(true);
       }
 
-      if (data.google_connected || data.github_connected) {
+      if (shouldSetCoursera && !isCourseraConnected) {
+        setIsCourseraConnected(true);
+      }
+
+      if (shouldSetAuth && !isAuthenticated) {
         setIsAuthenticated(true);
       }
+
+      // Update saved state with current backend state if available
+      if (data.google_connected || data.github_connected || savedConnections.coursera) {
+        saveConnectionState({
+          youtube: data.google_connected || savedConnections.youtube,
+          github: data.github_connected || savedConnections.github,
+          coursera: savedConnections.coursera,
+          authenticated: true,
+          user: user || savedConnections.user,
+          platformData: savedConnections.platformData,
+          isGitHubDataLoading: savedConnections.isGitHubDataLoading || false,
+          isYouTubeDataLoading: savedConnections.isYouTubeDataLoading || false,
+          isCourseraDataLoading: savedConnections.isCourseraDataLoading || false
+        });
+      }
+
     } catch (err) {
       console.error("Auth state check failed", err);
+      
+      const savedConnections = loadConnectionState();
+      if (savedConnections.authenticated) {
+        setIsAuthenticated(true);
+        if (savedConnections.youtube) setIsYouTubeConnected(true);
+        if (savedConnections.github) setIsGitHubConnected(true);
+        if (savedConnections.coursera) setIsCourseraConnected(true);
+        if (savedConnections.user) setUser(savedConnections.user);
+        if (savedConnections.platformData) setPlatformData(savedConnections.platformData);
+        if (savedConnections.isGitHubDataLoading) setIsGitHubDataLoading(true);
+        if (savedConnections.isYouTubeDataLoading) setIsYouTubeDataLoading(true);
+        if (savedConnections.isCourseraDataLoading) setIsCourseraDataLoading(true);
+      }
     }
   };
 
   updateAuthState();
-}, []);
+}, [setIsAuthenticated, setUser, setIsGitHubConnected, setIsYouTubeConnected, setIsCourseraConnected]);
+
+useEffect(() => {
+  if (isAuthenticated) {
+    const connections = {
+      youtube: isYouTubeConnected,
+      github: isGitHubConnected,
+      coursera: isCourseraConnected,
+      authenticated: isAuthenticated,
+      user: user,
+      platformData: platformData, // Save current platform data
+      isGitHubDataLoading: isGitHubDataLoading,
+      isYouTubeDataLoading: isYouTubeDataLoading,
+      isCourseraDataLoading: isCourseraDataLoading
+    };
+    saveConnectionState(connections);
+  }
+}, [isAuthenticated, isYouTubeConnected, isGitHubConnected, isCourseraConnected, user, platformData, isGitHubDataLoading, isYouTubeDataLoading, isCourseraDataLoading]);
 
 const handleGoogleSignIn = async () => {
   try {
@@ -112,27 +253,8 @@ const handleGitHubSignIn = async () => {
     console.error("OAuth login failed:", error);
   }
 };
- const mockData = {
-      github: {
-        repos: 15,
-        stars: 234,
-        contributions: 89,
-        topLanguages: ["JavaScript", "Python", "TypeScript"],
-      },
-      youtube: {
-        watchTime: "45h",
-        videosWatched: 127,
-        channels: 23,
-        categories: ["Programming", "Tech Reviews", "Tutorials"],
-      },
-      coursera: {
-        coursesCompleted: 8,
-        certificatesEarned: 5,
-        hoursLearned: 156,
-        subjects: ["Machine Learning", "Web Development", "Data Science"],
-      }
-    }
-      const handleConnectPlatform = (platform) => {
+
+const handleConnectPlatform = (platform) => {
   switch (platform) {
     case "github":
       handleGitHubSignIn(); // OAuth flow
@@ -140,27 +262,236 @@ const handleGitHubSignIn = async () => {
     case "youtube":
       handleGoogleSignIn(); // OAuth flow
       break;
-    case "coursera":
-      setIsCourseraConnected(true);
-      setPlatformData((prev) => ({ ...prev, coursera: mockData.coursera }));
+    case "coursera": {
+      setIsCourseraDataLoading(true);
+      
+      // Update session storage with loading state
+      const currentConnections = loadConnectionState();
+      saveConnectionState({
+        ...currentConnections,
+        isCourseraDataLoading: true
+      });
+
+      window.open("https://www.coursera.org", "_blank");
+      alert("We opened Coursera in a new tab. Please wait while we fetch your course data.");
+
+      const handleMessage = async (event) => {
+        if (event.data?.source === "coursera_extractor") {
+
+          try {
+            setIsCourseraConnected(true);
+            setPlatformData((prev) => {
+              const newData = {
+                ...prev,
+                coursera: event.data.payload,
+              };
+              
+              const currentConnections = loadConnectionState();
+              saveConnectionState({
+                ...currentConnections,
+                coursera: true,
+                platformData: newData
+              });
+              
+              return newData;
+            });
+
+            if (user?.email && event.data.payload?.courses?.length > 0) {
+              console.log("Calling recommendation API for Coursera...");
+              
+              const courseUrls = event.data.payload.courses.map(course => course.url);
+              console.log(courseUrls)
+              const recommendResponse = await fetch(`http://localhost:8000/recommend-coursera?email=${user.email}`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  history: courseUrls
+                }),
+                credentials: 'include'
+              });
+              if (recommendResponse.ok) {
+                const recommendations = await recommendResponse.json();
+                
+                
+                setPlatformData((prev) => {
+                  const newData = {
+                    ...prev,
+                    coursera: {
+                      ...prev.coursera,
+                      recommendations: recommendations
+                    }
+                  };
+                  
+                  const currentConnections = loadConnectionState();
+                  saveConnectionState({
+                    ...currentConnections,
+                    platformData: newData,
+                    isCourseraDataLoading: false
+                  });
+                  
+                  return newData;
+                });
+              } else {
+                console.error("Failed to get Coursera recommendations");
+              }
+            }
+
+          } catch (error) {
+            console.error("Error processing Coursera data:", error);
+          } finally {
+            setIsCourseraDataLoading(false);
+            
+            const currentConnections = loadConnectionState();
+            saveConnectionState({
+              ...currentConnections,
+              isCourseraDataLoading: false
+            });
+          }
+
+          window.removeEventListener("message", handleMessage);
+        }
+      };
+
+      window.addEventListener("message", handleMessage);
       break;
+    }
   }
 };
 
-// When GitHub is connected
 useEffect(() => {
-  if (isGitHubConnected) {
-    setPlatformData((prev) => ({ ...prev, github: mockData.github }));
-  }
-}, [isGitHubConnected]);
+  if (isGitHubConnected && user?.email) {
+    const fetchGitHubData = async () => {
+      try {
+        // Check if we already have GitHub data in current state or session storage
+        const savedConnections = loadConnectionState();
+        
+        // Check current platformData first, then session storage
+        if (platformData?.github || savedConnections.platformData?.github) {
+          console.log("GitHub data already exists, skipping fetch");
+          
+          // If only in session storage, update current state
+          if (!platformData?.github && savedConnections.platformData?.github) {
+            setPlatformData((prev) => ({
+              ...prev,
+              github: savedConnections.platformData.github
+            }));
+          }
+          
+          setIsGitHubDataLoading(false);
+          return;
+        }
 
-// When YouTube is connected
+        console.log("Fetching GitHub data for the first time...");
+        setIsGitHubDataLoading(true);
+        
+        // Update session storage with loading state
+        const currentConnections = loadConnectionState();
+        saveConnectionState({
+          ...currentConnections,
+          isGitHubDataLoading: true
+        });
+        
+        const res = await fetch(`http://localhost:8000/get_github_data?email=${user.email}`);
+        const data = await res.json();
+
+        setPlatformData((prev) => {
+          const newData = {
+            ...prev,
+            github: data
+          };
+          
+          // Save to session storage
+          const currentConnections = loadConnectionState();
+          saveConnectionState({
+            ...currentConnections,
+            platformData: newData,
+            isGitHubDataLoading: false
+          });
+          
+          return newData;
+        });
+      } catch (err) {
+        console.error("Failed to fetch GitHub data:", err);
+        // Clear loading state on error
+        const currentConnections = loadConnectionState();
+        saveConnectionState({
+          ...currentConnections,
+          isGitHubDataLoading: false
+        });
+      } finally {
+        setIsGitHubDataLoading(false);
+      }
+    };
+
+    fetchGitHubData();
+  }
+}, [isGitHubConnected, user?.email, platformData?.github]);
+
 useEffect(() => {
-  if (isYouTubeConnected) {
-    setPlatformData((prev) => ({ ...prev, youtube: mockData.youtube }));
-  }
-}, [isYouTubeConnected]);
+  if (isYouTubeConnected && user?.email) {
+    const fetchYouTubeData = async () => {
+      try {
+        const savedConnections = loadConnectionState();
+        
+        if (platformData?.youtube || savedConnections.platformData?.youtube) {
+          console.log("YouTube data already exists, skipping fetch");
+          
+          if (!platformData?.youtube && savedConnections.platformData?.youtube) {
+            setPlatformData((prev) => ({
+              ...prev,
+              youtube: savedConnections.platformData.youtube
+            }));
+          }
+          
+          setIsYouTubeDataLoading(false);
+          return;
+        }
 
+        console.log("Fetching YouTube data for the first time...");
+        setIsYouTubeDataLoading(true);
+        
+        const currentConnections = loadConnectionState();
+        saveConnectionState({
+          ...currentConnections,
+          isYouTubeDataLoading: true
+        });
+
+        const res = await fetch(`http://localhost:8000/get_youtube_data?email=${user.email}`);
+        const data = await res.json();
+
+        setPlatformData((prev) => {
+          const newData = {
+            ...prev,
+            youtube: data,
+          };
+          
+          // Save to session storage
+          const currentConnections = loadConnectionState();
+          saveConnectionState({
+            ...currentConnections,
+            platformData: newData,
+            isYouTubeDataLoading: false
+          });
+          
+          return newData;
+        });
+      } catch (err) {
+        console.error("Failed to fetch YouTube data:", err);
+        const currentConnections = loadConnectionState();
+        saveConnectionState({
+          ...currentConnections,
+          isYouTubeDataLoading: false
+        });
+      } finally {
+        setIsYouTubeDataLoading(false);
+      }
+    };
+
+    fetchYouTubeData();
+  }
+}, [isYouTubeConnected, user?.email, platformData?.youtube]);
 
   const platforms = [
     {
@@ -172,6 +503,7 @@ useEffect(() => {
       stats: "50M+ Repos",
       isConnected: isGitHubConnected,
       platform: "github",
+      isLoading: isGitHubDataLoading,
     },
     {
       name: "YouTube",
@@ -182,39 +514,42 @@ useEffect(() => {
       stats: "2B+ Videos",
       isConnected: isYouTubeConnected,
       platform: "youtube",
+      isLoading: isYouTubeDataLoading,
     },
     {
       name: "Coursera",
       icon: BookOpen,
-      description: "Sync course progress and unlock personalized learning paths",
+      description: "Syncs looked up courses and recommends relevant courses (Let the sync with either github or youtube complete before trying to sync coursera)",
       gradient: "from-blue-600 via-blue-700 to-blue-900",
       glowColor: "shadow-blue-500/50",
       stats: "4K+ Courses",
       isConnected: isCourseraConnected,
       platform: "coursera",
+      isLoading: isCourseraDataLoading,
     },
   ]
 
-  const features = [
-    {
-      title: "Smart Recommendations",
-      description: "AI analyzes your learning patterns across platforms to suggest the perfect next step",
-      icon: Sparkles,
-      color: "from-yellow-400 to-orange-500",
-    },
-    {
-      title: "Learning Graph Visualizer",
-      description: "See connections between your skills and discover knowledge gaps to fill",
-      icon: Network,
-      color: "from-cyan-400 to-blue-500",
-    },
-    {
-      title: "Cross-platform Sync Status",
-      description: "Real-time synchronization of your progress across all connected platforms",
-      icon: Zap,
-      color: "from-purple-400 to-pink-500",
-    },
-  ]
+const features = [
+  {
+    title: "Smart Recommendations",
+    description: "AI analyzes your learning patterns across platforms to suggest the perfect next step",
+    icon: Sparkles,
+    color: "from-yellow-400 to-orange-500",
+  },
+  {
+    title: "Custom AI Recommendations",
+    description: "Get highly personalized project, video, and course suggestions tailored to your unique interests",
+    icon: Network, // consider importing lucide-react's `Brain` icon for a better visual fit
+    color: "from-cyan-400 to-blue-500",
+  },
+  {
+    title: "Cross-platform Sync Status",
+    description: "Real-time synchronization of your progress across all connected platforms",
+    icon: Zap,
+    color: "from-purple-400 to-pink-500",
+  },
+]
+
 
   return (
     <div className="relative min-h-screen pt-20">
@@ -322,67 +657,65 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* Platform Showcase */}
-      {isAuthenticated && (
-        <section className="py-20 px-6 relative">
-          <div className="container mx-auto">
+      {/* Platform Showcase - Show for everyone */}
+      <section className="py-20 px-6 relative">
+        <div className="container mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-5xl md:text-6xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                Connect Your Universe
+              </span>
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Seamlessly integrate with the platforms you already use to learn and grow
+            </p>
+          </motion.div>
+
+         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {platforms.map((platform, index) => (
+              <motion.div
+                key={platform.name}
+                initial={{ opacity: 0, y: 50, rotateY: -15 }}
+                whileInView={{ opacity: 1, y: 0, rotateY: 0 }}
+                transition={{
+                  duration: 0.8,
+                  delay: index * 0.2,
+                  type: "spring",
+                  stiffness: 100,
+                }}
+              >
+                {platform.isConnected ? (
+                  <ConnectedPlatformCard {...platform} />
+                ) : (
+                  <PlatformCard {...platform} onConnect={() => handleConnectPlatform(platform.platform)} />
+                )}
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Analytics Button - Only show when authenticated and connected */}
+          {isAuthenticated && (isGitHubConnected || isYouTubeConnected || isCourseraConnected) && (
             <motion.div
               initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-              className="text-center mb-16"
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1, duration: 0.8 }}
+              className="text-center mt-12"
             >
-              <h2 className="text-5xl md:text-6xl font-bold mb-6">
-                <span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                  Connect Your Universe
+              <GlowButton variant="primary" size="large" onClick={() => navigate("/dashboard")} className="group">
+                <span className="flex items-center space-x-3">
+                  <TrendingUp className="w-6 h-6" />
+                  <span>Dashboard</span>
                 </span>
-              </h2>
-              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-                Seamlessly integrate with the platforms you already use to learn and grow
-              </p>
+              </GlowButton>
             </motion.div>
-
-            <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              {platforms.map((platform, index) => (
-                <motion.div
-                  key={platform.name}
-                  initial={{ opacity: 0, y: 50, rotateY: -15 }}
-                  whileInView={{ opacity: 1, y: 0, rotateY: 0 }}
-                  transition={{
-                    duration: 0.8,
-                    delay: index * 0.2,
-                    type: "spring",
-                    stiffness: 100,
-                  }}
-                >
-                  {platform.isConnected ? (
-                    <ConnectedPlatformCard {...platform} />
-                  ) : (
-                    <PlatformCard {...platform} onConnect={() => handleConnectPlatform(platform.platform)} />
-                  )}
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Analytics Button */}
-            {(isGitHubConnected || isYouTubeConnected || isCourseraConnected) && (
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1, duration: 0.8 }}
-                className="text-center mt-12"
-              >
-                <GlowButton variant="primary" size="large" onClick={() => navigate("/dashboard")} className="group">
-                  <span className="flex items-center space-x-3">
-                    <TrendingUp className="w-6 h-6" />
-                    <span>Dashboard</span>
-                  </span>
-                </GlowButton>
-              </motion.div>
-            )}
-          </div>
-        </section>
-      )}
+          )}
+        </div>
+      </section>
 
       {/* Dynamic Features Showcase */}
       <section className="py-20 px-6 relative">

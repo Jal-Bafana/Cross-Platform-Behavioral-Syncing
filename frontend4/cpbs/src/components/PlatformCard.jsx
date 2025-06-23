@@ -5,9 +5,16 @@ import { ExternalLink } from "lucide-react"
 import GlowButton from "./GlowButton"
 
 const PlatformCard = ({ name, icon: Icon, description, gradient, glowColor, stats, onConnect }) => {
+  const handleConnectClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log(`Connecting to ${name}...`); // Debug log
+    onConnect();
+  };
+
   return (
     <motion.div
-      className="relative group cursor-pointer h-full"
+      className="relative group h-full"
       whileHover={{ y: -10, scale: 1.02 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
@@ -49,14 +56,19 @@ const PlatformCard = ({ name, icon: Icon, description, gradient, glowColor, stat
         </div>
 
         <div className="mt-6">
-          <GlowButton variant="primary" size="medium" onClick={onConnect} className="w-full">
+          <GlowButton
+            variant="primary"
+            size="medium"
+            onClick={handleConnectClick}
+            className="w-full"
+          >
             Connect Platform
           </GlowButton>
         </div>
 
         {/* Animated Border */}
         <motion.div
-          className="absolute inset-0 rounded-2xl border-2 border-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          className="absolute inset-0 rounded-2xl border-2 border-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
           style={{
             background:
               "linear-gradient(45deg, transparent, transparent), linear-gradient(45deg, #00f5ff, #8b5cf6, #ec4899)",

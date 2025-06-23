@@ -23,5 +23,4 @@ __pycache__/
 
 # Ignore model artifacts (if any)
 *.pt
-*.pkl
 *.h5

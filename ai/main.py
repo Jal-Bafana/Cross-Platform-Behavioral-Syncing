@@ -25,7 +25,7 @@ from auth import router as auth_router
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # or "*" for all
+    allow_origins=["http://localhost:3000"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,14 +36,14 @@ app.add_middleware(
     secret_key="922005", 
     https_only=False,
     same_site="none",
-    max_age=3600,  # 1 hour
+    max_age=3600,  
     path="/"
 )
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")  # This fetches the key from env
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")  
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 YOUTUBE_API_SERVICE_NAME = "youtube"
 YOUTUBE_API_VERSION = "v3"
@@ -68,7 +68,7 @@ def get_github(query: str):
             "q": query,
             "sort": "stars",
             "order": "desc",
-            "per_page": 10
+            "per_page": 15
         }
         url = "https://api.github.com/search/repositories"
         response = requests.get(url, headers=headers, params=params)
@@ -263,7 +263,6 @@ def fetch_youtube_behavior(access_token: str, request: Request) -> List[str]:
         text = clean_text(f"{title} {desc}")
         return text if len(text.split()) > 3 else None
 
-    # --- Fetch liked videos ---
     liked = get_items("https://www.googleapis.com/youtube/v3/videos", {
         "part": "snippet",
         "myRating": "like",
@@ -277,7 +276,6 @@ def fetch_youtube_behavior(access_token: str, request: Request) -> List[str]:
         if idx == 0:
             recent_liked_title = snippet.get("title", None)
 
-    # --- Fetch subscriptions ---
     subs = get_items("https://www.googleapis.com/youtube/v3/subscriptions", {
         "part": "snippet",
         "mine": "true",
@@ -288,7 +286,6 @@ def fetch_youtube_behavior(access_token: str, request: Request) -> List[str]:
         if text:
             collected.add(text)
 
-    # --- Fetch Watch Later ---
     watch_later = get_items("https://www.googleapis.com/youtube/v3/playlistItems", {
         "part": "snippet",
         "playlistId": "WL",
@@ -299,7 +296,6 @@ def fetch_youtube_behavior(access_token: str, request: Request) -> List[str]:
         if text:
             collected.add(text)
 
-    # --- Get channel info ---
     try:
         channel_info = get_items("https://www.googleapis.com/youtube/v3/channels", {
             "part": "snippet,statistics",
@@ -315,7 +311,6 @@ def fetch_youtube_behavior(access_token: str, request: Request) -> List[str]:
         channel_name = "Unknown"
         subscribers = 0
 
-    # --- Store data in DB ---
     try:
         time_spent = int(request.headers.get("X-Time-Spent", "0"))
         db = get_db()
@@ -341,7 +336,6 @@ def fetch_youtube_behavior(access_token: str, request: Request) -> List[str]:
             datetime.now()
         ))
         db.commit()
-        print(f"Stored for user {user_id}: {channel_name}, subs={subscribers}, liked='{recent_liked_title}', time={time_spent}s")
 
     except Exception as e:
         print("DB Error:", e)
@@ -364,43 +358,125 @@ def fetch_readme_snippet(owner, repo_name, headers, lines=5):
         return "\n".join(decoded.splitlines()[:lines])
     except Exception:
         return ""
+    
+@app.get("/get_userid")
+def get_user_id(email: str):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("""
+        SELECT id
+        FROM users
+        WHERE email = %s
+        ORDER BY created_at DESC
+        LIMIT 1
+    """, (email, ))
+    
+    result = cursor.fetchone()
+    
+    if not result:
+        return {"error": "Token not found"}
+
+    return result[0]
+
+    
+def get_access_token(user_id: int, platform: str):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("""
+        SELECT access_token
+        FROM user_tokens
+        WHERE user_id = %s AND platform = %s
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """, (user_id, platform))
+    
+    result = cursor.fetchone()
+    
+    if not result:
+        return None
+
+    return result[0]
+
+@app.get("/token")
+def get_token(user_id: int, platform: str):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("""
+        SELECT access_token
+        FROM user_tokens
+        WHERE user_id = %s AND platform = %s
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """, (user_id, platform))
+    
+    result = cursor.fetchone()
+    
+    if not result:
+        return None
+
+    return result[0]
 
 @app.post("/fetch_git")
 def fetch_github_behaviour(access_token: str):
     headers = {"Authorization": f"Bearer {access_token}"}
 
+    def safe_get_json(url, params=None):
+        try:
+            res = requests.get(url, headers=headers, params=params)
+            if res.status_code == 200:
+                return res.json()
+            else:
+                print(f"GitHub API Error {url}: {res.status_code} {res.text}")
+                return None
+        except Exception as e:
+            print(f"Request failed for {url}:", e)
+            return None
+
     # Fetch user info
-    user_info = requests.get("https://api.github.com/user", headers=headers).json()
+    user_info = safe_get_json("https://api.github.com/user")
+    if not isinstance(user_info, dict):
+        return {"error": "Failed to fetch GitHub user info"}
+
     username = user_info.get("login", "")
     total_repos = user_info.get("public_repos", 0)
 
-    # Contributions from public events
-    events = requests.get(f"https://api.github.com/users/{username}/events/public", headers=headers).json()
-    contributions = sum(1 for e in events if e.get("type") in ["PushEvent", "PullRequestEvent", "IssuesEvent"])
+    # Fetch contributions
+    events = safe_get_json(f"https://api.github.com/users/{username}/events/public")
+    contributions = 0
+    if isinstance(events, list):
+        contributions = sum(1 for e in events if e.get("type") in ["PushEvent", "PullRequestEvent", "IssuesEvent"])
+    else:
+        print("Events data not a list:", events)
 
     # Starred repos
-    starred = requests.get("https://api.github.com/user/starred", headers=headers).json()
-    total_stars = sum(repo.get("stargazers_count", 0) for repo in starred)
+    starred = safe_get_json("https://api.github.com/user/starred") or []
+    total_stars = sum(repo.get("stargazers_count", 0) for repo in starred if isinstance(repo, dict))
 
     history = []
 
     # History from starred
     for repo in starred:
+        if not isinstance(repo, dict):
+            continue
         owner = repo.get("owner", {}).get("login", "")
         name = repo.get("name", "")
         desc = repo.get("description", "")
         readme = fetch_readme_snippet(owner, name, headers)
         history.append(f"{name} {desc} {readme}".strip())
 
-    # History from user's own repos
-    repos = requests.get("https://api.github.com/user/repos", headers=headers).json()
+    # User repos
+    repos = safe_get_json("https://api.github.com/user/repos") or []
     for repo in repos:
+        if not isinstance(repo, dict):
+            continue
         name = repo.get("name", "")
         desc = repo.get("description", "")
         readme = fetch_readme_snippet(username, name, headers)
         history.append(f"{name} {desc} {readme}".strip())
 
-    # Store in DB
     try:
         db = get_db()
         cursor = db.cursor()
@@ -423,24 +499,101 @@ def fetch_github_behaviour(access_token: str):
     return {"history": [line for line in history if line]}
 
 
+@app.get("/get_github_data")
+def get_github_data(email: str):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user_row = cursor.fetchone()
+
+    if not user_row:
+        return {"error": "User not found"}
+
+    user_id = user_row[0]
+
+    access_token = get_access_token(user_id=user_id, platform="github")
+
+    try:
+        response = requests.post("http://localhost:8000/fetch_git", params={"access_token": access_token})
+        history = response.json().get("history",[])
+        if response.status_code != 200:
+            print("Fetch GitHub failed:", response.text)
+        response2 = requests.post(f"http://localhost:8000/recommend-git/?token={access_token}", json={
+        "history": history})
+    except Exception as e:
+        print("Failed to fetch GitHub data internally:", e)
+
+    cursor.execute("""
+        SELECT public_repos, total_stars, contributions, last_updated
+        FROM github_user_data
+        WHERE user_id = %s
+    """, (user_id,))
+    data = cursor.fetchone()
+
+    if not data:
+        return {"error": "No GitHub data found for this user"}
+
+    return {
+        "repos": data[0],
+        "stars": data[1],
+        "contributions": data[2],
+        "lastUpdated": data[3].isoformat() if data[3] else None,
+    } 
+
+@app.get("/get_youtube_data")
+def get_youtube_data(email: str):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user_row = cursor.fetchone()
+
+    if not user_row:
+        return {"error": "User not found"}
+
+    user_id = user_row[0]
+
+    access_token = get_access_token(user_id=user_id, platform="google")
+    
+
+    try:
+        response = requests.post("http://localhost:8000/fetch", params={"access_token": access_token})
+        history = response.json()
+        if response.status_code != 200:
+            print("Fetch Youtube failed:", response.text)
+        response2 = requests.post(f"http://localhost:8000/recommend-yt/?token={access_token}", json={
+        "history": history})
+    except Exception as e:
+        print("Failed to fetch Youtube data internally:", e)
+
+    cursor.execute("""
+        SELECT channel_name, subscribers, recent_liked_video, last_updated
+        FROM youtube_user_data
+        WHERE user_id = %s
+    """, (user_id,))
+    data = cursor.fetchone()
+
+    if not data:
+        return {"error": "No YouTube data found for this user"}
+
+    return {
+        "channelName": data[0],
+        "subscribers": data[1],
+        "recentLikedVideo": data[2],
+        "lastUpdated": data[3].isoformat() if data[3] else None
+    }
+
 class UserHistory(BaseModel):
     history: list[str]
 
 from datetime import datetime
 @app.get("/auth/status")
 def auth_status(request: Request):
-    print("=== AUTH STATUS DEBUG ===")
-    print("Request cookies:", request.cookies)
-    print("Session keys:", list(request.session.keys()))
-    print("Session data:", dict(request.session))
+   
     google_user = request.session.get("google_user")
-    print("Google user:", google_user)
-    
-    # ... rest of your existing code
-    print("Session keys:", list(request.session.keys()))
     google_user = request.session.get("google_user")
     github_user = request.session.get("github_user")
-    print("google user: ", google_user)
 
     return {
         "authenticated": bool(google_user or github_user),
@@ -486,7 +639,6 @@ def recommendYT(data: UserHistory, token: str):
             "message": "Most of your recent activity is non-educational. Try watching more educational content."
         }
 
-    print("Filtered Educational Keywords:", filtered_keywords)
 
     try:
         user_vector = embed_text(" ".join(filtered_keywords)).reshape(1, -1)
@@ -518,7 +670,7 @@ def recommendYT(data: UserHistory, token: str):
 
     try:
         similarities = cosine_similarity(user_vector, resource_vector)[0]
-        top_indexes = similarities.argsort()[::-1][:5]
+        top_indexes = similarities.argsort()[::-1][:10]
         recommended_videos = [resources[i] for i in top_indexes]
     except Exception as e:
         return {
@@ -528,19 +680,16 @@ def recommendYT(data: UserHistory, token: str):
             "message": f"Similarity computation failed: {e}"
         }
 
-    # 🔥 INSERT INTO DATABASE
     try:
         db = get_db()
         cursor = db.cursor()
 
-        # fetch user_id from token
         cursor.execute("SELECT user_id FROM user_tokens WHERE access_token = %s", (token,))
         result = cursor.fetchone()
         if result is None:
             raise Exception("Invalid token: user not found.")
         user_id = result[0]
 
-        # Clear old recommendations
         cursor.execute("DELETE FROM youtube_recommendations WHERE user_id = %s", (user_id,))
 
         for video in recommended_videos:
@@ -553,7 +702,7 @@ def recommendYT(data: UserHistory, token: str):
                 video['title'],
                 video['description'],
                 video['published_at'],
-                str(video['duration_seconds']) + " seconds",  # or keep raw ISO duration
+                str(video['duration_seconds']) + " seconds", 
                 video['views'],
                 video['channel'],
                 video["url"]
@@ -564,18 +713,114 @@ def recommendYT(data: UserHistory, token: str):
         print("DB Error (YouTube recommendation insert):", e)
 
     return {
-        "source": "youtube",
-        "keywords": filtered_keywords,
-        "scores": similarities[top_indexes].tolist(),
-        "recommendations": recommended_videos
+        "message":"recommendations stored"
     }
 
+@app.get("/get_github_recommendations")
+def get_github_recommendations(email: str):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user_row = cursor.fetchone()
+    if not user_row:
+        return {"error": "User not found"}
+    user_id = user_row[0]
+
+    cursor.execute("""
+        SELECT repo_name, url, description, stars, forks, language, owner
+        FROM github_recommendations
+        WHERE user_id = %s
+        ORDER BY stars DESC
+        LIMIT 10
+    """, (user_id,))
+    rows = cursor.fetchall()
+
+    return [
+        {
+            "repoName": row[0],
+            "url": row[1],
+            "description": row[2],
+            "stars": row[3],
+            "forks": row[4],
+            "language": row[5],
+            "owner": row[6]
+        }
+        for row in rows
+    ]
+
+@app.get("/get_coursera_recommendations")
+def get_coursera_recommendations(email: str):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user_row = cursor.fetchone()
+    if not user_row:
+        return {"error": "User not found"}
+    user_id = user_row[0]
+
+    cursor.execute("""
+        SELECT course_title, provider, enrolled, rating, fetched_at, url, info
+        FROM coursera_recommendations
+        WHERE user_id = %s
+        ORDER BY rating DESC
+        LIMIT 10
+    """, (user_id,))
+    rows = cursor.fetchall()
+
+    return [
+        {
+            "title": row[0],
+            "provider": row[1],
+            "enrolled": row[2],
+            "rating": row[3],
+            "fetchedAt": row[4].isoformat() if row[4] else None,
+            "url": row[5],
+            "info": row[6]
+        }
+        for row in rows
+    ]
+
+@app.get("/get_youtube_recommendations")
+def get_youtube_recommendations(email: str):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user_row = cursor.fetchone()
+    if not user_row:
+        return {"error": "User not found"}
+    user_id = user_row[0]
+
+    cursor.execute("""
+        SELECT title, description, published_at, duration, views, channel_name, url
+        FROM youtube_recommendations
+        WHERE user_id = %s
+        ORDER BY views DESC
+        LIMIT 10
+    """, (user_id,))
+    rows = cursor.fetchall()
+
+    recommendations = [
+        {
+            "title": row[0],
+            "description": row[1],
+            "publishedAt": row[2].isoformat() if row[2] else None,
+            "duration": row[3],
+            "views": row[4],
+            "channelName": row[5],
+            "url": row[6]
+        }
+        for row in rows
+    ]
+
+    return recommendations
 
 
 
 @app.post("/recommend-git")
 def recommendGIT(data: UserHistory,token: str):
-    # Step 1: Clean and combine history into a single string
     cleaned_history = []
     for item in data.history:
         item = item.replace("#", "").replace("*", "").replace("None", "").strip()
@@ -584,7 +829,6 @@ def recommendGIT(data: UserHistory,token: str):
 
     full_text = " ".join(cleaned_history)
 
-    # Step 2: Extract keywords
     user_keywords = extract_keywords([full_text])
     if not user_keywords:
         return {
@@ -594,15 +838,10 @@ def recommendGIT(data: UserHistory,token: str):
             "message": "We couldn't extract meaningful content from your GitHub activity. Try starring or working on more tech-related repositories."
         }
 
-    print("Keywords:", user_keywords)
-
-    # Step 3: Embed user keywords
     try:
         user_vector = embed_text(" ".join(user_keywords))
     except Exception as e:
         return {"error": f"Embedding user keywords failed: {e}"}
-
-    # Step 4: Fetch GitHub repos using those keywords
     resources = get_github(" ".join(user_keywords))
     if not resources:
         return {
@@ -619,31 +858,27 @@ def recommendGIT(data: UserHistory,token: str):
     except Exception as e:
         return {"error": f"Embedding resources failed: {e}"}
 
-    # Step 5: Calculate similarity & return top 5
     try:
         similarities = cosine_similarity(user_vector, resource_vector)[0]
-        top_indexes = similarities.argsort()[::-1][:5]
+        top_indexes = similarities.argsort()[::-1][:10]
         recommended_titles = [resources[i] for i in top_indexes]
     except Exception as e:
         return {"error": f"Similarity computation failed: {e}"}
 
-    # Step 6: Store in DB
     try:
         db = get_db()
         cursor = db.cursor()
-
+        
         cursor.execute("""
             SELECT user_id FROM user_tokens WHERE platform = %s AND access_token = %s
-        """, ("github", token))  # `data.token` should be passed in your `UserHistory`
+        """, ("github", token))  
         user_id_row = cursor.fetchone()
         if not user_id_row:
             return {"error": "User not found for the given token."}
         user_id = user_id_row[0]
 
-        # Delete old recs
         cursor.execute("DELETE FROM github_recommendations WHERE user_id = %s", (user_id,))
 
-        # Insert new top 5
         for repo in recommended_titles:
             cursor.execute("""
                 INSERT INTO github_recommendations 
@@ -659,7 +894,7 @@ def recommendGIT(data: UserHistory,token: str):
                 repo["language"],
                 repo["owner"]
             ))
-
+        print("db stored")
         db.commit()
     except Exception as e:
         return {"error": f"DB storage failed: {e}"}
@@ -672,12 +907,11 @@ def recommendGIT(data: UserHistory,token: str):
     }
 
 @app.post("/recommend-coursera")
-def recommendCOURSERA(data: UserHistory):
+def recommendCOURSERA(data: UserHistory, email:str):
     course_titles = []
     for url in data.history:
         try:
             path = urlparse(url).path  
-            print(url)
             parts = path.strip("/").split("/")
             if "learn" in parts:
                 slug = parts[-1].replace("-", " ")
@@ -688,7 +922,6 @@ def recommendCOURSERA(data: UserHistory):
     user_keywords = extract_keywords([" ".join(course_titles)])
     if not user_keywords:
         return {"error": "No keywords extracted from user history."}
-    print(user_keywords)
     user_vector = embed_text(" ".join(user_keywords))
     resources = get_courses(" ".join(user_keywords))
     resource_text = [r['title'] for r in resources]
@@ -697,6 +930,38 @@ def recommendCOURSERA(data: UserHistory):
     similarities = cosine_similarity(user_vector, resource_vector)[0]#compares each vector in resource vector to user_vector and returns a cosine similarity list having same index as resource vector
     top_indexes = similarities.argsort()[::-1][:5]
     recommended_titles = [resources[i] for i in top_indexes]
+    try:
+        db = get_db()
+        cursor = db.cursor()
+
+        cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+        user_id_result = cursor.fetchone()
+        if not user_id_result:
+            return {"error": "Invalid token: user not found."}
+        user_id = user_id_result[0]
+
+        cursor.execute("DELETE FROM coursera_recommendations WHERE user_id = %s", (user_id,))
+
+        for course in recommended_titles:
+            cursor.execute("""
+                INSERT INTO coursera_recommendations 
+                (user_id, course_title, provider, enrolled, rating, fetched_at, url, info)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                user_id,
+                course["title"],
+                course["provider"],
+                course["ppl"],
+                course["star"],
+                datetime.now(),
+                course["url"],
+                course["info"]
+            ))
+
+        db.commit()
+    except Exception as e:
+        print("DB Error (Coursera recommendations):", e)
+
     return {
     "source": "coursera",
     "keywords": user_keywords,

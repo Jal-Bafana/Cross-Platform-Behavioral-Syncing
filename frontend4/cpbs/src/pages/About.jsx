@@ -2,8 +2,12 @@
 
 import { motion } from "framer-motion"
 import { Brain, Heart, Users, Zap, Target, Rocket, Shield, Globe, Github, Linkedin } from "lucide-react"
+import GlowButton from "../components/GlowButton"
+import { useNavigate } from "react-router-dom";
+
 
 const About = () => {
+  const navigate = useNavigate();
   const teamValues = [
     {
       icon: Brain,
@@ -32,13 +36,7 @@ const About = () => {
     },
   ]
 
-  // Stats section commented out as requested
-  // const stats = [
-  //   { number: "50K+", label: "Active Learners", icon: Users },
-  //   { number: "2M+", label: "Synced Activities", icon: Target },
-  //   { number: "99.9%", label: "Uptime", icon: Shield },
-  //   { number: "150+", label: "Countries", icon: Globe },
-  // ]
+ 
 
   const techStack = [
     "React",
@@ -357,6 +355,11 @@ const About = () => {
             </motion.div>
           ))}
         </motion.div>
+        <div className="flex flex-wrap justify-center">
+                    <GlowButton variant="primary" size="medium" onClick={() => navigate("/dashboard")}>
+                      Dashboard                    
+                  </GlowButton>
+        </div>
       </div>
     </div>
   )
