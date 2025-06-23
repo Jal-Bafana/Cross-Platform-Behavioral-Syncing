@@ -13,20 +13,12 @@ from uvicorn.supervisors.basereload import BaseReload
 class FileFilter:
     def __init__(self, config: Config):
         default_includes = ["*.py"]
-        self.includes = [
-            default
-            for default in default_includes
-            if default not in config.reload_excludes
-        ]
+        self.includes = [default for default in default_includes if default not in config.reload_excludes]
         self.includes.extend(config.reload_includes)
         self.includes = list(set(self.includes))
 
         default_excludes = [".*", ".py[cod]", ".sw.*", "~*"]
-        self.excludes = [
-            default
-            for default in default_excludes
-            if default not in config.reload_includes
-        ]
+        self.excludes = [default for default in default_excludes if default not in config.reload_includes]
         self.exclude_dirs = []
         for e in config.reload_excludes:
             p = Path(e)
@@ -39,14 +31,14 @@ class FileFilter:
             if is_dir:
                 self.exclude_dirs.append(p)
             else:
-                self.excludes.append(e)
+                self.excludes.append(e)  # pragma: full coverage
         self.excludes = list(set(self.excludes))
 
     def __call__(self, path: Path) -> bool:
         for include_pattern in self.includes:
             if path.match(include_pattern):
                 if str(path).endswith(include_pattern):
-                    return True
+                    return True  # pragma: full coverage
 
                 for exclude_dir in self.exclude_dirs:
                     if exclude_dir in path.parents:
@@ -54,7 +46,7 @@ class FileFilter:
 
                 for exclude_pattern in self.excludes:
                     if path.match(exclude_pattern):
-                        return False
+                        return False  # pragma: full coverage
 
                 return True
         return False
@@ -71,10 +63,7 @@ class WatchFilesReload(BaseReload):
         self.reloader_name = "WatchFiles"
         self.reload_dirs = []
         for directory in config.reload_dirs:
-            if Path.cwd() not in directory.parents:
-                self.reload_dirs.append(directory)
-        if Path.cwd() not in self.reload_dirs:
-            self.reload_dirs.append(Path.cwd())
+            self.reload_dirs.append(directory)
 
         self.watch_filter = FileFilter(config)
         self.watcher = watch(
