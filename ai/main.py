@@ -499,6 +499,8 @@ def fetch_github_behaviour(access_token: str):
     return {"history": [line for line in history if line]}
 
 
+import time
+
 @app.get("/get_github_data")
 def get_github_data(email: str):
     db = get_db()
@@ -506,21 +508,26 @@ def get_github_data(email: str):
 
     cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
     user_row = cursor.fetchone()
-
     if not user_row:
         return {"error": "User not found"}
-
     user_id = user_row[0]
 
     access_token = get_access_token(user_id=user_id, platform="github")
 
     try:
         response = requests.post("http://localhost:8000/fetch_git", params={"access_token": access_token})
-        history = response.json().get("history",[])
+        history = response.json().get("history", [])
         if response.status_code != 200:
             print("Fetch GitHub failed:", response.text)
-        response2 = requests.post(f"http://localhost:8000/recommend-git/?token={access_token}", json={
-        "history": history})
+
+        # Optional: Wait a short moment to ensure DB commit is done
+        time.sleep(0.5)
+
+        # OR re-open DB connection for fresher state
+        db = get_db()
+        cursor = db.cursor()
+
+        requests.post(f"http://localhost:8000/recommend-git/?token={access_token}", json={"history": history})
     except Exception as e:
         print("Failed to fetch GitHub data internally:", e)
 
@@ -539,7 +546,10 @@ def get_github_data(email: str):
         "stars": data[1],
         "contributions": data[2],
         "lastUpdated": data[3].isoformat() if data[3] else None,
-    } 
+    }
+
+
+import time
 
 @app.get("/get_youtube_data")
 def get_youtube_data(email: str):
@@ -555,17 +565,25 @@ def get_youtube_data(email: str):
     user_id = user_row[0]
 
     access_token = get_access_token(user_id=user_id, platform="google")
-    
 
     try:
         response = requests.post("http://localhost:8000/fetch", params={"access_token": access_token})
         history = response.json()
         if response.status_code != 200:
-            print("Fetch Youtube failed:", response.text)
-        response2 = requests.post(f"http://localhost:8000/recommend-yt/?token={access_token}", json={
-        "history": history})
+            print("Fetch YouTube failed:", response.text)
+
+        # Wait briefly to ensure DB write finishes
+        time.sleep(0.5)
+
+        # Reopen DB connection to ensure we get fresh data
+        db = get_db()
+        cursor = db.cursor()
+
+        requests.post(f"http://localhost:8000/recommend-yt/?token={access_token}", json={
+            "history": history
+        })
     except Exception as e:
-        print("Failed to fetch Youtube data internally:", e)
+        print("Failed to fetch YouTube data internally:", e)
 
     cursor.execute("""
         SELECT channel_name, subscribers, recent_liked_video, last_updated
@@ -583,6 +601,7 @@ def get_youtube_data(email: str):
         "recentLikedVideo": data[2],
         "lastUpdated": data[3].isoformat() if data[3] else None
     }
+
 
 class UserHistory(BaseModel):
     history: list[str]

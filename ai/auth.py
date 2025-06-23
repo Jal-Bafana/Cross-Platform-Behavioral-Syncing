@@ -52,10 +52,10 @@ def save_tokens_yt(email, access_token, refresh_token, expires_in, platform):
         user_id = user[0]
     else:
         cursor.execute(
-            "INSERT INTO users (email) VALUES (%s) RETURNING id",
+            "INSERT INTO users (email) VALUES (%s)",
             (email,)
         )
-        user_id = cursor.fetchone()[0]
+        user_id = cursor.lastrowid
 
 
     query = """
@@ -181,10 +181,7 @@ def store_github_token(email: str, access_token: str):
     if user:
         user_id = user[0]
     else:
-        cursor.execute(
-    "INSERT INTO users (email) VALUES (%s)",
-    (email,)
-    )
+        cursor.execute("INSERT INTO users (email) VALUES (%s)",(email,))
         user_id = cursor.lastrowid 
 
     query = """
