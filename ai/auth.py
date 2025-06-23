@@ -182,11 +182,10 @@ def store_github_token(email: str, access_token: str):
         user_id = user[0]
     else:
         cursor.execute(
-            "INSERT INTO users (email) VALUES (%s) RETURNING id",
-            (email,)
-        )
-
-        user_id = cursor.fetchone()[0]
+    "INSERT INTO users (email) VALUES (%s)",
+    (email,)
+    )
+        user_id = cursor.lastrowid 
 
     query = """
         INSERT INTO user_tokens (user_id, platform, access_token)
