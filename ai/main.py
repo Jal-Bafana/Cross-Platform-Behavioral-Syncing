@@ -25,7 +25,7 @@ from auth import router as auth_router
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  
+    allow_origins=["https://sync-mind.vercel.app"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -630,7 +630,7 @@ def recommendYT(data: UserHistory, token: str):
                 filtered_keywords.append(word)
 
     filtered_keywords = list(dict.fromkeys(filtered_keywords))
-
+    print("filtered keywords: ",filtered_keywords)
     if not filtered_keywords:
         return {
             "source": "youtube",
