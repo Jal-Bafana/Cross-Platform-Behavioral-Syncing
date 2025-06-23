@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-pydantic
 requests
 selenium
 scikit-learn
@@ -8,4 +7,5 @@ python-dotenv
 mysql-connector-python
 google-api-python-client
 isodate
-starlette
+sentence-transformers
+keybert
