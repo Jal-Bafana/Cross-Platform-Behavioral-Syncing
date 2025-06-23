@@ -138,7 +138,7 @@ def google_callback(request: Request):
     }
     
     # Redirect with the token
-    return RedirectResponse(f"https://sync-mind.vercel.app/?auth_token={temp_token}")
+    return RedirectResponse(f"http://localhost:3000?auth_token={temp_token}")
 
 @router.get("/claim")
 def claim_session(auth_token: str, request: Request):
@@ -238,7 +238,7 @@ def github_callback(code: str, request: Request):
         "platform": "github" 
     }
     
-    return RedirectResponse(f"https://sync-mind.vercel.app/?auth_token={temp_token}")
+    return RedirectResponse(f"http://localhost:3000?auth_token={temp_token}")
 
 from fastapi import Request
 from mysql.connector import connect

@@ -23,17 +23,25 @@ import mysql.connector
 from auth import router as auth_router
 
 app = FastAPI()
-dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-load_dotenv(dotenv_path)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://sync-mind.vercel.app", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET_KEY") or "922005",  
-    https_only=True,  
+    SessionMiddleware, 
+    secret_key="922005", 
+    https_only=False,
     same_site="none",
-    max_age=3600,
+    max_age=3600,  
     path="/"
 )
+
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path)
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")  
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
